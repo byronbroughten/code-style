@@ -1,0 +1,70 @@
+{
+  "name": "@byronbroughten/code-style",
+  "version": "0.1.0",
+  "description": "General tooling for TypeScript projects: an ESLint flat-config preset, the prettier config, a base tsconfig, a doc linter and the general style docs.",
+  "type": "module",
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/byronbroughten/code-style.git"
+  },
+  "engines": {
+    "node": "^18.18.0 || ^20.9.0 || >=21.1.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    "./eslint": "./eslint.js",
+    "./prettier": "./prettier.json",
+    "./tsconfig.base.json": "./tsconfig.base.json"
+  },
+  "bin": {
+    "lint-docs": "./lintDocs.js"
+  },
+  "files": [
+    "eslint.js",
+    "eslint",
+    "prettier.json",
+    "tsconfig.base.json",
+    "docLint.js",
+    "lintDocs.js",
+    "docs"
+  ],
+  "dependencies": {
+    "@eslint/js": "^9.35.0",
+    "eslint-plugin-n": "^17.24.0",
+    "eslint-plugin-simple-import-sort": "^14.0.0",
+    "typescript-eslint": "^8.43.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "eslint": "^9.35.0",
+    "prettier": "3.9.6",
+    "typescript": "^5.9.2",
+    "vitest": "^4.1.11"
+  },
+  "peerDependencies": {
+    "eslint": "^9.35.0",
+    "prettier": "^3.9.6",
+    "typescript": "^5.9.2"
+  },
+  "peerDependenciesMeta": {
+    "eslint": {
+      "optional": true
+    },
+    "prettier": {
+      "optional": true
+    },
+    "typescript": {
+      "optional": true
+    }
+  },
+  "scripts": {
+    "tsc": "tsc -p .",
+    "test": "vitest run",
+    "lint": "eslint . && node lintDocs.js --published . && prettier --check .",
+    "lint:docs": "node lintDocs.js --published ."
+  },
+  "prettier": "./prettier.json"
+}

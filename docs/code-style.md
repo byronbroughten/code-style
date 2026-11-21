@@ -1,0 +1,117 @@
+# Coding style
+
+Distilled from the author's own refactors of AI-generated code, plus a survey of a codebase for consistent, repeated patterns. This file covers general TypeScript code _shape_; a project's own rules layer on it.
+
+One line per rule. The reasoning and worked examples are one file away. Open a reasoning file only when you're changing the rule, or the rule's line doesn't decide your case.
+
+## Reasoning files
+
+| When | File |
+| --- | --- |
+| Placing a member, a helper or a class | [`docs/code-style/class-shape.md`](./code-style/class-shape.md) |
+| Naming a value, method, flag, getter or param bag | [`docs/code-style/naming.md`](./code-style/naming.md) |
+| A type-level choice, a lookup table, a named type | [`docs/code-style/type-modeling.md`](./code-style/type-modeling.md) |
+| A shared message phrase, a skip-and-log | [`docs/code-style/error-handling.md`](./code-style/error-handling.md) |
+| Writing or changing a test | [`docs/code-style/tests.md`](./code-style/tests.md) |
+| A comment, or a file-level navigation block | [`docs/code-style/comments.md`](./code-style/comments.md) |
+| A loop, `reduce`, a chaining mutator, a combined option, a ternary, a named state flag | [`docs/code-style/idioms.md`](./code-style/idioms.md) |
+| Imports, barrels, file names | [`docs/code-style/file-organization.md`](./code-style/file-organization.md) |
+
+## Class shape
+
+- **Extract the shared piece once its second caller is in the code or an open ticket**, without waiting for it to arrive.
+- **A class extends a Base for its identity and shared state, and gets its behaviour from collaborators it builds** ([why](./code-style/class-shape.md#inherit-identity-and-state-compose-behaviour)).
+- **Member order:** `static init()`, then collaborator getters, then public behavior methods, then `_`-prefixed private helpers — a single-caller helper sits right after its caller.
+  - **A private helper that never reads `this` is an unexported module function below the class, not a `_` method**, ordered by first use. A helper that reads `this` only to reach a collaborator stays a method. Lint backs it for `private` and `#` methods.
+  - **A helper whose arguments are one collaborator and its state belongs on that collaborator.** A public method that doesn't read `this` stays put; a helper that only renames a function in scope is deleted.
+  - **Helpers sharing a subject and passing nothing between them become an object bundle.**
+  - **Helpers passing one value around become a helper class** in its own file.
+- **Delete dead scaffolding in a file you touch**, but **ask before deleting commented-out code.** Zero callers is a list of candidates, not a verdict.
+- **A "why" comment carries over verbatim across a restructure.**
+- **One class per file, custom `Error` subclasses included.** Lint backs it.
+- **Split a class into collaborators when its private helpers fall into groups that share nothing with each other**, not when it passes a method or line count ([why](./code-style/class-shape.md#split-a-class-when-its-helpers-fall-into-groups-that-share-nothing)).
+  - **The split class keeps its public methods as one-line delegations**, and its collaborators go in a subfolder named after it.
+  - **A Base class holds the coordinator's props and builds, in lazy getters, the helper classes more than one collaborator uses**; the coordinator and each collaborator extend it, and the helper classes don't ([why](./code-style/class-shape.md#a-split-class-shares-a-base-and-layers-its-collaborators)).
+  - **Collaborators layer without cycles: each builds the ones below it in lazy getters, and the Base never imports a collaborator**; a getter back to a coordinator that holds shared state is the one upward reference ([why](./code-style/class-shape.md#a-split-class-shares-a-base-and-layers-its-collaborators)).
+  - **A collaborator is named `<Subject><Role>`, plus the tier suffix where the codebase has tiers**: the role is an agent noun, or a plain descriptive noun where no verb fits ([why](./code-style/naming.md#a-collaborator-is-subjectrole)).
+
+## Naming
+
+- **Prefer a term from TS/JS's own vocabulary over a made-up adjective.**
+- **Name a value after the domain type it holds, not a generic container word.**
+- **A boolean is a third-person statement about its subject, never a bare adjective.** It defaults to `false`, so it appears only where it changes something.
+  - **A flag in a config literal is the exception: it is an imperative directive to whatever reads the literal**, one mood per literal.
+- **A plural method name promises more of the same return, not a different container.**
+- **Trim a method name to what the return type doesn't already say.**
+- **A name has to read to someone who has never opened this codebase** — never jargon named after the mechanism that sets it.
+- **A constant is camelCase; two or more in one file that serve one purpose become one `as const` object named for that purpose.** Lint backs the camelCase half.
+- **A property of a record or schema we define is camelCase; one mirroring an external wire shape keeps that API's spelling.** Lint doesn't check properties.
+- **A no-arg, side-effect-free member is a getter unless it costs a round trip or a nested loop over a whole sheet's rows**; a value fixed for the object's lifetime is a plain field ([why](./code-style/naming.md#parens-mean-expensive)).
+- **`_` prefix means "narrow-purpose, not general API"**: a true `private` helper, or a step a coordinating class must call that TS won't let you mark `private`.
+- **Destructure params into a named type at 3+ params, 2+ params of one type, or when a named type for the bag already exists**, except a symmetric comparator, whose arguments can swap; otherwise stay positional ([why](./code-style/naming.md#destructure-params-or-stay-positional)).
+
+## Comments
+
+- **Default to no comments.** When a block would need a comment saying _what_ it does, pull it into a small private method whose name says it.
+- **A comment is one line explaining a "why not the obvious thing"**; a longer why goes in the doc that line links to, or isn't written.
+- **The one multi-line exception is a file-level navigation block**, 5–10 lines above the exported class stating the file's job and where neighbouring work lives.
+
+## Error handling & validation
+
+- **A phrase that names the same thing in several messages or labels comes from one function.**
+- **Default to a plain `throw new Error("specific message")`.** Mint a custom `Error` subclass only when callers need to catch the failure _category_ by type.
+- **Guard-clause throws, never nested conditionals.** The one accepted exception is an exhaustiveness check, which ends in a trailing `else { throw new Error(...) }`.
+- **Trace whether a "shouldn't happen" condition is actually reachable before defaulting to skip-and-log**; if upstream already guarantees it can't happen, throw.
+
+## Type modeling
+
+- **`type` for everything computed from other types.** A plain object shape is an `interface`; lint enforces it.
+- **Generic params get two-letter domain abbreviations with a constraint**; bare `T`/`K`/`V`/`O` are only for domain-free utilities and tests; lint checks the two letters, not the constraint.
+- **`undefined` is the one "absent" value; `null` appears only where an external API's types or JSON carry it.**
+- **Narrow a type until the empty case can't arise, rather than a branded-string fallback.**
+- **A per-kind lookup table is keyed by the finite union its producer returns, never a `switch` with a `default` over a wider type.**
+- **An optional parameter that switches a function to a second job means it should be a second function.** Don't add an overload to loosen a constraint for one caller.
+- **Use the named type that already exists instead of an inline shape**, for a field or return type as well as a param bag.
+
+## Functional vs. imperative idioms
+
+- **`map` only for pure transforms; a loop for side effects is `for…of`, never `forEach`** ([why](./code-style/idioms.md#forof-over-foreach)).
+- **`for…in` only in a project's structural utilities.**
+- **`reduce` is fully accepted** for building a new object/record, rather than a manual loop with a declared accumulator: seed a fresh `{}`, `new Map()` or `[]`, mutate it and return it.
+- **`flatMap` returning `[]` or `[x]` filters and maps in one pass** when the map needs the narrowed value.
+- **Mutator methods return `this` for chaining.**
+- **A helper returns what it produces; no output parameters.**
+- **Standalone units are `function`/`export function` declarations.** Arrow functions appear only as inline callbacks; lint backs it outside tests.
+- **An option that combines other options is built from them, not from copies of their bodies.**
+- **`if`/`else` over a ternary for anything beyond a single trivial value pick** ([when a ternary stays](./code-style/idioms.md#ifelse-over-a-ternary)).
+- **Encode state as a named variable and an explicit `if`, not a wrapper object or a compact operator**; `??=` fills in a default, never tracks "computed yet?".
+- **`&&` or `||` produces a value only when every falsy value its left side can hold should count as missing.** Where a `0`, `""` or `false` is real data, use `??`, `?.` or an explicit check.
+
+## Smells
+
+- **Whether a smell is fixed or kept, and its approved exceptions: the byro-repo root's `docs/agents/verdicts.md`.**
+
+## Tests
+
+- **A test sits beside what it tests (`Foo.test.ts`).**
+- **A test file splits by subject when its top-level `describe` blocks share nothing but setup, and the shared setup moves to a sibling fixture module**, as a class splits ([why](./code-style/class-shape.md#split-a-class-when-its-helpers-fall-into-groups-that-share-nothing)).
+- **Assert the outcome a caller can observe, not the calls made to reach it.** A call count stands only where the count is itself the contract.
+- **A test needing a value on one side of a tunable default pins that setting in its fixture**; only a test of the default itself reads it ([why](./code-style/tests.md#a-test-pins-the-tunable-default-it-depends-on)).
+- **A test starts a process only when that process is what it tests.**
+- **A fixture costing more than a few milliseconds is built once per file and copied or reset for each test.**
+- **A test never really waits: time goes through an injected clock or fake timers.**
+- **A test reaches no network and opens no real port.**
+
+## Tooling
+
+- **Hooks, scripts and tool configs follow this file too.**
+
+## Imports & file organization
+
+- **No barrel/index files: no file exists only to re-export others**, apart from a package's declared public entries.
+- **A file may re-assemble the pieces in its own same-named subfolder, taking each piece's export whole**, never a hand-picked subset of its members ([why](./code-style/file-organization.md#re-assembling-a-subfolder-isnt-a-barrel)).
+- **File naming:**
+  - PascalCase mirroring the exported class name.
+  - A short PascalCase abbreviation for a file exporting one static-bundle object of related functions. A fat bundle's pieces split into a same-named subfolder.
+  - camelCase for plain data/config or entry-point files.
+  - A module whose helpers fall into groups that share nothing splits by subject into a same-named subfolder of camelCase files, each exporting camelCase bundles written with method shorthand.

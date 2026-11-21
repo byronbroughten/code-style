@@ -1,0 +1,6 @@
+node_modules/
+coverage/
+.DS_Store
+
+# No lockfile: CI installs fresh, so dependency drift shows up there.
+package-lock.json

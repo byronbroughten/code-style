@@ -1,0 +1,5 @@
+node_modules/
+coverage/
+
+# Hand-curated prose; prettier rewrites *emphasis* and re-pads wide tables.
+*.md

@@ -1,0 +1,27 @@
+name: Publish
+
+# A pushed `v<version>` tag publishes that version through npm trusted publishing, which this file's name is registered for.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          registry-url: https://registry.npmjs.org
+      - name: The tag names package.json's version
+        run: test "$GITHUB_REF_NAME" = "v$(node -p 'require("./package.json").version')"
+      - run: npm install
+      - run: npm run tsc
+      - run: npm test
+      - run: npm run lint
+      - run: npm publish --provenance
