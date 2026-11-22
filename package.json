@@ -20,7 +20,7 @@
     "./tsconfig.base.json": "./tsconfig.base.json"
   },
   "bin": {
-    "lint-docs": "./lintDocs.js"
+    "lint-docs": "lintDocs.js"
   },
   "files": [
     "eslint.js",
