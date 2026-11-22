@@ -63,7 +63,7 @@
   "scripts": {
     "tsc": "tsc -p .",
     "test": "vitest run",
-    "lint": "eslint . && node lintDocs.js --published . && prettier --check .",
+    "lint": "eslint . && npm run -s lint:docs && prettier --check .",
     "lint:docs": "node lintDocs.js --published ."
   },
   "prettier": "./prettier.json"

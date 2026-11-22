@@ -10,7 +10,11 @@ permissions:
   id-token: write
 
 jobs:
+  checks:
+    uses: ./.github/workflows/ci.yml
+
   publish:
+    needs: checks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -20,8 +24,4 @@ jobs:
           registry-url: https://registry.npmjs.org
       - name: The tag names package.json's version
         run: test "$GITHUB_REF_NAME" = "v$(node -p 'require("./package.json").version')"
-      - run: npm install
-      - run: npm run tsc
-      - run: npm test
-      - run: npm run lint
       - run: npm publish --provenance
