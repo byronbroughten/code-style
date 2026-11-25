@@ -6,7 +6,7 @@ The first heading is Class shape's collaborator-naming rule; the rest follow doc
 
 ## A collaborator is `<Subject><Role>`
 
-**A collaborator is named `<Subject><Role>`, plus the tier suffix where the codebase has tiers.** The subject is a word from the glossary of the code it serves, saying which part of the work it handles; the role is an agent noun saying what it does there (`TicketLander`, `HaltRaiser`), or a plain descriptive noun where no verb fits (`RunLoop`). It takes no coordinator prefix, since the subfolder named after the coordinator already groups them. A codebase with tiers ends the name on the tier word, as its own naming doc says; the runner has no tiers, so its collaborators stop at the role. A role can't reuse another glossary term's word: `SpecRun`'s split has no `Implementer`, the implement agent's name as a fixer, and nothing ending in `Runner`, the glossary's word for the whole tool (byronbroughten/byro-repo#344).
+**A collaborator is named `<Subject><Role>`, plus the tier suffix where the codebase has tiers.** The subject is a word from the glossary of the code it serves, saying which part of the work it handles; the role is an agent noun saying what it does there (`TicketLander`, `HaltRaiser`), or a plain descriptive noun where no verb fits (`RunLoop`). It takes no coordinator prefix, since the subfolder named after the coordinator already groups them. A codebase with tiers ends the name on the tier word, as its own naming doc says; the runner has no tiers, so its collaborators stop at the role. A role can't reuse another glossary term's word: `SpecRun`'s split has no `Implementer`, the implement agent's name as a fixer, and nothing ending in `Runner`, the glossary's word for the whole tool.
 
 ## Prefer TS/JS vocabulary over a made-up adjective
 
@@ -71,7 +71,7 @@ destructures because `FetchProps` already exists as a named type — the method 
 function prepRow(table: Table, rowSpecifier: RowSpecifier, columnId: string): void
 ```
 
-**A symmetric comparator stays positional though its two params share a type.** The rule guards against swapped arguments, and swapping `isSame(a, b)`'s changes nothing, so a bag would add a type name and protect against nothing; the runner's `issueRef.isSame`, `workspaceKey.isSame` and `leaseHolder.isSame` are such comparators. One whose order matters is not exempt: `issueRef.outside` returns a different set when its two lists swap, so it takes `{ issues, excluded }: IssueExclusion` (byronbroughten/byro-repo#654).
+**A symmetric comparator stays positional though its two params share a type.** The rule guards against swapped arguments, and swapping `isSame(a, b)`'s changes nothing, so a bag would add a type name and protect against nothing; the runner's `issueRef.isSame`, `workspaceKey.isSame` and `leaseHolder.isSame` are such comparators. One whose order matters is not exempt: `issueRef.outside` returns a different set when its two lists swap, so it takes `{ issues, excluded }: IssueExclusion`.
 
 ## Hoist the argument every implementation uses
 
