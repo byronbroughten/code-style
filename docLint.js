@@ -1,5 +1,5 @@
 // @ts-check
-// Checks a repo's agent-facing docs' links, size limits, observation lines and skill index; a doc map in, violations out. lintDocs.js runs it on the repo it is invoked in.
+// Checks a repo's agent-facing docs' links, size limits, ADR statuses, observation lines and skill index; a doc map in, violations out. lintDocs.js runs it on the repo it is invoked in.
 import { posix } from "node:path";
 
 const limits = {
@@ -25,6 +25,14 @@ const observationIndexes = new Set([
   "docs/google-docs-behaviour.md",
   "docs/sheets-behaviour.md",
 ]);
+const adrStatus = {
+  // Where a doc root keeps its ADRs.
+  folder: "docs/adr/",
+  states:
+    /^(?:proposed|accepted|accepted, amended|deprecated|superseded by ADR-\d{4})$/,
+  stateNames:
+    '"proposed", "accepted", "accepted, amended", "deprecated" or "superseded by ADR-NNNN"',
+};
 const skillIndex = {
   // The doc that must link every skill's SKILL.md, relative to its repo root.
   doc: "docs/agents/workflows.md",
@@ -78,6 +86,7 @@ export function checkDocs({ docs, paths = [], published = [] }) {
       if (posix.basename(path) !== "README.md") checkReadmeLinks(text, report);
     }
     if (isDocsFolderFile(path)) checkLead(text, report);
+    if (isAdr(path)) checkAdrStatus(text, report);
     if (observationIndexes.has(path)) checkObservations(text, report);
     if (posix.basename(path) === "AGENTS.md" && path !== "AGENTS.md") {
       checkClaudePairing(path, docs, report);
@@ -114,6 +123,11 @@ function isDocsFolderFile(path) {
 function isRecord(path) {
   const local = inRoot(path);
   return recordPrefixes.some((prefix) => local.startsWith(prefix));
+}
+
+/** @param {string} path */
+function isAdr(path) {
+  return inRoot(path).startsWith(adrStatus.folder);
 }
 
 /** @param {string} path */
@@ -331,13 +345,14 @@ function checkReadmeLinks(text, report) {
   });
 }
 
-// A read-by-heading doc's lead: the non-blank lines after its title and before its first `##` heading.
+// A read-by-heading doc's lead: the non-blank lines after its front matter and title and before its first `##` heading.
 /**
  * @param {string} text
  * @param {Report} report
  */
 function checkLead(text, report) {
-  const lines = proseLines(text);
+  const frontMatterLines = frontMatterOf(text).length;
+  const lines = proseLines(text).filter(({ line }) => line > frontMatterLines);
   const firstSection = firstSectionIndex(lines);
   if (firstSection === -1) {
     const bytes = byteLength(text);
@@ -367,6 +382,39 @@ function checkLead(text, report) {
       `lead is ${bytes} bytes before the first ## heading; keep it to ${limits.leadBytes} and move the rest under a heading`,
     );
   }
+}
+
+// The lead check leaves front matter out, so holding the status to a bare state is what stops it growing there.
+/**
+ * @param {string} text
+ * @param {Report} report
+ */
+function checkAdrStatus(text, report) {
+  const lines = frontMatterOf(text);
+  for (const [index, { line, content }] of lines.entries()) {
+    const opening = /^status\s*:(.*)$/.exec(content)?.[1];
+    if (opening === undefined) continue;
+    const status = yamlValueOf(opening, lines.slice(index + 1));
+    if (adrStatus.states.test(status)) continue;
+    report(
+      line,
+      `ADR status "${status}" isn't a state; use ${adrStatus.stateNames}, and say what changed under ## Amendments`,
+    );
+  }
+}
+
+// A key's value on one line, unquoted; it runs on through the lines below it until one starts unindented.
+/**
+ * @param {string} opening
+ * @param {ProseLine[]} below
+ */
+function yamlValueOf(opening, below) {
+  const end = below.findIndex(({ content }) => /^\S/.test(content));
+  return [opening, ...below.slice(0, end).map(({ content }) => content)]
+    .map((part) => part.trim())
+    .filter((part) => part !== "")
+    .join(" ")
+    .replace(/^(["'])(.*)\1$/, "$2");
 }
 
 // Each bullet after the first `##` heading; the lead's bullets describe the index rather than record an observation.
@@ -419,6 +467,22 @@ function skillIndexViolations(docs) {
       },
     ];
   });
+}
+
+// The front matter block that opens a doc, both `---` fences included; empty without one.
+/**
+ * @param {string} text
+ * @returns {ProseLine[]}
+ */
+function frontMatterOf(text) {
+  const lines = text
+    .split("\n")
+    .map((content, index) => ({ line: index + 1, content: content.trimEnd() }));
+  if (lines[0]?.content !== "---") return [];
+  const closing = lines.findIndex(
+    ({ content }, index) => index > 0 && content === "---",
+  );
+  return lines.slice(0, closing + 1);
 }
 
 // The index of the first `##` heading among a doc's prose lines, or -1.
