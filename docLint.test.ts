@@ -454,6 +454,41 @@ describe("checkDocs", () => {
       expect(check({ "docs/a.md": withLead(5, 159) })).toEqual([]);
     });
 
+    function withFrontMatter(frontMatter: string, doc: string): string {
+      return `---\n${frontMatter}\n---\n\n${doc}`;
+    }
+
+    it("leaves opening front matter out of the lead's lines", () => {
+      const doc = withFrontMatter("status: accepted", withLead(5));
+      expect(check({ "docs/a.md": doc })).toEqual([]);
+    });
+
+    it("leaves opening front matter out of the lead's bytes", () => {
+      const doc = withFrontMatter("status: accepted", withLead(2, 399));
+      expect(check({ "docs/a.md": doc })).toEqual([]);
+    });
+
+    it("still counts the lead after front matter, from its own line", () => {
+      const doc = withFrontMatter("status: accepted", withLead(6));
+      expect(check({ "docs/a.md": doc })).toEqual([
+        {
+          path: "docs/a.md",
+          line: 7,
+          message:
+            "lead is 6 lines before the first ## heading; keep it to 5 and move the rest under a heading",
+        },
+      ]);
+    });
+
+    it.each([
+      ["doesn't open the doc", `# Doc\n\n---\nx\n---\n\n${withLead(3)}`],
+      ["is never closed", `---\n\n${withLead(5)}`],
+    ])("counts a --- block that %s", (_, doc) => {
+      expect(messages({ "docs/a.md": doc })).toEqual([
+        expect.stringContaining("lines before the first ## heading"),
+      ]);
+    });
+
     it("fails a docs/ file over 4 KB with no ## heading", () => {
       expect(messages({ "docs/a.md": unheaded(4097) })).toEqual([
         "docs/a.md: doc is 4097 bytes with no ## heading; over 4096 bytes, give it a short lead and ## headings so it can be read by section",
@@ -484,6 +519,76 @@ describe("checkDocs", () => {
           "packages/app/src/docs/a.md": withLead(6),
         }),
       ).toEqual([]);
+    });
+  });
+
+  describe("ADR status", () => {
+    const path = "docs/adr/0001-decide.md";
+    function adr(frontMatter: string): string {
+      return `---\n${frontMatter}\n---\n\n# Decide\n\nBody.\n`;
+    }
+    function failure(status: string): string {
+      return `ADR status "${status}" isn't a state; use "proposed", "accepted", "accepted, amended", "deprecated" or "superseded by ADR-NNNN", and say what changed under ## Amendments`;
+    }
+
+    it.each([
+      "proposed",
+      "accepted",
+      "accepted, amended",
+      "deprecated",
+      "superseded by ADR-0037",
+      '"accepted, amended"',
+    ])("passes status %s", (status) => {
+      expect(check({ [path]: adr(`status: ${status}`) })).toEqual([]);
+    });
+
+    it.each([
+      "accepted, amended by ADR-0027",
+      "partly superseded by ADR-0035",
+      "superseded by ADR-0033, which replaces the backup",
+      "superseded by owner/repo#2",
+      "amended by #1071",
+      "Accepted",
+      "",
+    ])('fails status "%s"', (status) => {
+      expect(messages({ [path]: adr(`status: ${status}`) })).toEqual([
+        `${path}: ${failure(status)}`,
+      ]);
+    });
+
+    it("reports the status line's number", () => {
+      const [violation] = check({ [path]: adr("date: x\nstatus: done") });
+      expect(violation?.line).toBe(3);
+    });
+
+    it("fails a state that runs on onto an indented line", () => {
+      expect(
+        messages({ [path]: adr("status: accepted\n  by ADR-0027") }),
+      ).toEqual([`${path}: ${failure("accepted by ADR-0027")}`]);
+    });
+
+    it("passes a state followed by another key", () => {
+      expect(check({ [path]: adr("status: accepted\n\ndate: x") })).toEqual([]);
+    });
+
+    it("checks a package's ADRs", () => {
+      const packaged = `packages/app/${path}`;
+      expect(messages({ [packaged]: adr("status: done") })).toEqual([
+        `${packaged}: ${failure("done")}`,
+      ]);
+    });
+
+    it("passes an ADR with no status in its front matter", () => {
+      expect(
+        check({
+          [path]: "# Decide\n\nstatus: done\n",
+          "docs/adr/0002-more.md": adr("date: x"),
+        }),
+      ).toEqual([]);
+    });
+
+    it("leaves a doc outside an ADR folder unchecked", () => {
+      expect(check({ "docs/a.md": adr("status: done") })).toEqual([]);
     });
   });
 
