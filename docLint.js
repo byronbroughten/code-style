@@ -26,12 +26,15 @@ const observationIndexes = new Set([
   "docs/sheets-behaviour.md",
 ]);
 const adrStatus = {
-  // Where a doc root keeps its ADRs.
   folder: "docs/adr/",
-  states:
-    /^(?:proposed|accepted|accepted, amended|deprecated|superseded by ADR-\d{4})$/,
-  stateNames:
-    '"proposed", "accepted", "accepted, amended", "deprecated" or "superseded by ADR-NNNN"',
+  // `NNNN` stands for an ADR's four digits.
+  states: [
+    "proposed",
+    "accepted",
+    "accepted, amended",
+    "deprecated",
+    "superseded by ADR-NNNN",
+  ],
 };
 const skillIndex = {
   // The doc that must link every skill's SKILL.md, relative to its repo root.
@@ -282,16 +285,26 @@ function proseLines(text) {
   const lines = [];
   /** @type {string | null} */
   let fence = null;
-  text.split("\n").forEach((content, index) => {
-    const opener = /^\s*(```|~~~)/.exec(content);
+  for (const numbered of numberedLines(text)) {
+    const opener = /^\s*(```|~~~)/.exec(numbered.content);
     if (opener) {
       if (fence === null) fence = opener[1] ?? null;
       else if (opener[1] === fence) fence = null;
-      return;
+      continue;
     }
-    if (fence === null) lines.push({ line: index + 1, content });
-  });
+    if (fence === null) lines.push(numbered);
+  }
   return lines;
+}
+
+/**
+ * @param {string} text
+ * @returns {ProseLine[]}
+ */
+function numberedLines(text) {
+  return text
+    .split("\n")
+    .map((content, index) => ({ line: index + 1, content }));
 }
 
 // GitHub's slugger: lowercase, drop everything but letters, marks, numbers, spaces, `-` and `_`, then spaces to `-`.
@@ -395,15 +408,15 @@ function checkAdrStatus(text, report) {
     const opening = /^status\s*:(.*)$/.exec(content)?.[1];
     if (opening === undefined) continue;
     const status = yamlValueOf(opening, lines.slice(index + 1));
-    if (adrStatus.states.test(status)) continue;
+    if (isAdrState(status)) continue;
     report(
       line,
-      `ADR status "${status}" isn't a state; use ${adrStatus.stateNames}, and say what changed under ## Amendments`,
+      `ADR status "${status}" isn't a state; use ${adrStateNames()}, and say what changed under ## Amendments`,
     );
   }
 }
 
-// A key's value on one line, unquoted; it runs on through the lines below it until one starts unindented.
+// YAML runs a value on through indented lines, so the key's line alone would pass what grew below it.
 /**
  * @param {string} opening
  * @param {ProseLine[]} below
@@ -415,6 +428,18 @@ function yamlValueOf(opening, below) {
     .filter((part) => part !== "")
     .join(" ")
     .replace(/^(["'])(.*)\1$/, "$2");
+}
+
+/** @param {string} status */
+function isAdrState(status) {
+  return adrStatus.states.some((state) =>
+    new RegExp(`^${state.replace("NNNN", "\\d{4}")}$`).test(status),
+  );
+}
+
+function adrStateNames() {
+  const names = adrStatus.states.map((state) => `"${state}"`);
+  return `${names.slice(0, -1).join(", ")} or ${names.at(-1)}`;
 }
 
 // Each bullet after the first `##` heading; the lead's bullets describe the index rather than record an observation.
@@ -469,15 +494,15 @@ function skillIndexViolations(docs) {
   });
 }
 
-// The front matter block that opens a doc, both `---` fences included; empty without one.
 /**
  * @param {string} text
  * @returns {ProseLine[]}
  */
 function frontMatterOf(text) {
-  const lines = text
-    .split("\n")
-    .map((content, index) => ({ line: index + 1, content: content.trimEnd() }));
+  const lines = numberedLines(text).map(({ line, content }) => ({
+    line,
+    content: content.trimEnd(),
+  }));
   if (lines[0]?.content !== "---") return [];
   const closing = lines.findIndex(
     ({ content }, index) => index > 0 && content === "---",
